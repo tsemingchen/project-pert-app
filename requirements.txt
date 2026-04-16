@@ -3,3 +3,5 @@ numpy
 pandas
 matplotlib
 xlsxwriter
+python-docx
+networkx
