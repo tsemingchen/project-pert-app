@@ -13,6 +13,21 @@ st.set_page_config(
 )
 
 
+def get_secret(name: str) -> str | None:
+    env_value = os.getenv(name)
+    if env_value:
+        return env_value
+
+    try:
+        secret_value = st.secrets.get(name)
+        if secret_value:
+            return str(secret_value)
+    except Exception:
+        pass
+
+    return None
+
+
 def movie_row(tmdb_id: int):
     matches = TOP_MOVIES[TOP_MOVIES["tmdb_id"].astype(int) == int(tmdb_id)]
     if matches.empty:
@@ -22,7 +37,7 @@ def movie_row(tmdb_id: int):
 
 @lru_cache(maxsize=256)
 def watch_providers(tmdb_id: int):
-    tmdb_api_key = os.getenv("TMDB_API_KEY")
+    tmdb_api_key = get_secret("TMDB_API_KEY")
     if not tmdb_api_key:
         return {
             "items": [],
@@ -194,10 +209,18 @@ if submitted:
 
     if not preferences.strip():
         st.error("Please enter your movie preferences first.")
-    elif not os.getenv("OLLAMA_API_KEY"):
-        st.error("OLLAMA_API_KEY is not set in your environment yet.")
+    elif not get_secret("OLLAMA_API_KEY"):
+        st.error("The app is not connected to an Ollama API key yet.")
+        st.info(
+            "Local run: set `OLLAMA_API_KEY` in Terminal before starting Streamlit. "
+            "Streamlit Cloud: add `OLLAMA_API_KEY` in App Settings > Secrets."
+        )
     else:
         with st.spinner("Finding your match..."):
+            os.environ["OLLAMA_API_KEY"] = get_secret("OLLAMA_API_KEY") or ""
+            tmdb_secret = get_secret("TMDB_API_KEY")
+            if tmdb_secret:
+                os.environ["TMDB_API_KEY"] = tmdb_secret
             recommendation = get_recommendation(preferences.strip(), history)
 
         row = movie_row(int(recommendation["tmdb_id"]))
