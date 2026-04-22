@@ -1,8 +1,4 @@
-streamlit
-numpy
-pandas
-matplotlib
-xlsxwriter
-python-docx
-networkx
-scipy
+ollama>=0.6.1
+pandas>=2.0.0
+requests>=2.31.0
+streamlit>=1.44.0
