@@ -13,21 +13,6 @@ st.set_page_config(
 )
 
 
-def get_secret(name: str) -> str | None:
-    env_value = os.getenv(name)
-    if env_value:
-        return env_value
-
-    try:
-        secret_value = st.secrets.get(name)
-        if secret_value:
-            return str(secret_value)
-    except Exception:
-        pass
-
-    return None
-
-
 def movie_row(tmdb_id: int):
     matches = TOP_MOVIES[TOP_MOVIES["tmdb_id"].astype(int) == int(tmdb_id)]
     if matches.empty:
@@ -37,7 +22,7 @@ def movie_row(tmdb_id: int):
 
 @lru_cache(maxsize=256)
 def watch_providers(tmdb_id: int):
-    tmdb_api_key = get_secret("TMDB_API_KEY")
+    tmdb_api_key = os.getenv("TMDB_API_KEY")
     if not tmdb_api_key:
         return {
             "items": [],
@@ -162,6 +147,55 @@ st.markdown(
         font-size: 0.68rem;
         margin-bottom: 0.55rem;
       }
+
+      .result-meta {
+        color: #9fb4bd;
+        font-size: 1rem;
+        margin-top: 0.35rem;
+        margin-bottom: 1rem;
+      }
+
+      .result-copy {
+        color: #e7f1f4;
+        font-size: 1.02rem;
+        line-height: 1.75;
+      }
+
+      .meta-heading, .watch-heading {
+        color: #dff8fb;
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 0.45rem;
+      }
+
+      .meta-value {
+        color: #c7d7dd;
+        font-size: 0.98rem;
+        line-height: 1.75;
+      }
+
+      .provider-line {
+        color: #edf8fb;
+        font-size: 0.98rem;
+        margin: 0.25rem 0;
+      }
+
+      .provider-note, .tmdb-id {
+        color: #9fb4bd;
+        font-size: 0.92rem;
+        line-height: 1.6;
+      }
+
+      .tmdb-link a {
+        color: #74dbe5 !important;
+        font-weight: 600;
+        text-decoration: none;
+      }
+
+      .overview-copy {
+        color: #d7e6eb;
+        line-height: 1.75;
+      }
     </style>
     """,
     unsafe_allow_html=True,
@@ -209,18 +243,10 @@ if submitted:
 
     if not preferences.strip():
         st.error("Please enter your movie preferences first.")
-    elif not get_secret("OLLAMA_API_KEY"):
-        st.error("The app is not connected to an Ollama API key yet.")
-        st.info(
-            "Local run: set `OLLAMA_API_KEY` in Terminal before starting Streamlit. "
-            "Streamlit Cloud: add `OLLAMA_API_KEY` in App Settings > Secrets."
-        )
+    elif not os.getenv("OLLAMA_API_KEY"):
+        st.error("OLLAMA_API_KEY is not set in your environment yet.")
     else:
         with st.spinner("Finding your match..."):
-            os.environ["OLLAMA_API_KEY"] = get_secret("OLLAMA_API_KEY") or ""
-            tmdb_secret = get_secret("TMDB_API_KEY")
-            if tmdb_secret:
-                os.environ["TMDB_API_KEY"] = tmdb_secret
             recommendation = get_recommendation(preferences.strip(), history)
 
         row = movie_row(int(recommendation["tmdb_id"]))
@@ -243,33 +269,45 @@ if submitted:
                 st.markdown('<div style="height: 0.9rem;"></div>', unsafe_allow_html=True)
                 st.markdown('<div class="section-kicker">Movie Match</div>', unsafe_allow_html=True)
                 st.markdown(f'<div class="result-title" style="font-size:3.2rem;">{title}</div>', unsafe_allow_html=True)
-                st.caption(f"{row.get('year', '')} · {row.get('genres', 'Unknown genres')}")
+                st.markdown(
+                    f'<div class="result-meta">{row.get("year", "")} · {row.get("genres", "Unknown genres")}</div>',
+                    unsafe_allow_html=True,
+                )
                 st.markdown(
                     '<div class="gift-box">'
                     '<span class="gift-label">Why you got this match</span>'
-                    f'{recommendation.get("description", "")}'
+                    f'<div class="result-copy">{recommendation.get("description", "")}</div>'
                     '</div>',
                     unsafe_allow_html=True,
                 )
 
                 meta_left, meta_right = st.columns(2)
-                meta_left.markdown("**Top Cast**")
-                meta_left.write(str(row.get("top_cast", "Unknown cast")))
-                meta_right.markdown("**Director**")
-                meta_right.write(str(row.get("director", "Unknown director")))
+                meta_left.markdown(
+                    '<div class="meta-heading">Top Cast</div>'
+                    f'<div class="meta-value">{row.get("top_cast", "Unknown cast")}</div>',
+                    unsafe_allow_html=True,
+                )
+                meta_right.markdown(
+                    '<div class="meta-heading">Director</div>'
+                    f'<div class="meta-value">{row.get("director", "Unknown director")}</div>',
+                    unsafe_allow_html=True,
+                )
 
-                st.markdown("**Where To Watch**")
+                st.markdown('<div class="watch-heading">Where To Watch</div>', unsafe_allow_html=True)
                 if providers["items"]:
                     for name, mode in providers["items"]:
-                        st.write(f"- {name} ({mode})")
+                        st.markdown(
+                            f'<div class="provider-line">• {name} ({mode})</div>',
+                            unsafe_allow_html=True,
+                        )
                 else:
-                    st.write("Streaming details unavailable.")
-                st.caption(providers["note"])
+                    st.markdown('<div class="provider-line">Streaming details unavailable.</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="provider-note">{providers["note"]}</div>', unsafe_allow_html=True)
 
-                st.markdown(f"[Open on TMDB]({tmdb_url})")
+                st.markdown(f'<div class="tmdb-link"><a href="{tmdb_url}" target="_blank">Open on TMDB</a></div>', unsafe_allow_html=True)
 
                 with st.expander("Movie overview"):
-                    st.write(str(row.get("overview", "")))
+                    st.markdown(f'<div class="overview-copy">{row.get("overview", "")}</div>', unsafe_allow_html=True)
 
-                st.caption(f"TMDB ID: {int(recommendation['tmdb_id'])}")
+                st.markdown(f'<div class="tmdb-id">TMDB ID: {int(recommendation["tmdb_id"])}</div>', unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
